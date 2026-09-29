@@ -11,14 +11,19 @@ INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 
 def _plt():
     import matplotlib
+    import matplotlib.font_manager
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    installed = {f.name for f in matplotlib.font_manager.fontManager.ttflist}
+    cjk = [f for f in ("WenQuanYi Zen Hei", "Noto Sans CJK SC", "Microsoft YaHei", "SimHei", "PingFang SC")
+           if f in installed]
     plt.rcParams.update({
         "font.size": 9, "axes.edgecolor": MUTED, "axes.labelcolor": INK,
         "xtick.color": MUTED, "ytick.color": MUTED, "axes.spines.top": False,
-        "axes.spines.right": False, "font.family": ["DejaVu Sans"],
+        "axes.spines.right": False,
+        "font.family": ["DejaVu Sans", *cjk],
     })
     return plt
 

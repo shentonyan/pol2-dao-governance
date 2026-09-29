@@ -70,8 +70,9 @@ pip install -e ".[dev]"
 pol2dao demo                       # 跑一次完整的 PoL2 治理会话，写出决策链
 pol2dao verify results/demo_decision_chain.jsonl
 pol2dao published                  # 用论文公布的数字做「平等预算」反事实
-pol2dao simulate --reps 1000       # 基于智能体的模拟（约 1 分钟）
-pytest                             # 36 个测试
+pol2dao simulate --reps 1000       # 主模拟：4 个论文条件 + PoL2 + 消融（约 30 秒）
+pol2dao experiments --reps 1000    # 全部 14 个实验 E0–E13，生成全部图表（约 3 分钟）
+pytest                             # 49 个测试
 ```
 
 有 OSF 原始数据（<https://osf.io/q6snh/>，本仓库不附带）时，可以逐张选票重放：
@@ -125,15 +126,54 @@ print(s.finalize().to_dict())
 
 | 发现 | 数字 |
 |---|---|
-| **权力集中在多数派时，平等权力是最大的杠杆** | 排序投票：平等 0.43 → 20/80 0.18；二次方：0.68 → 0.24 |
+| **权力集中在多数派时，平等权力是最大的杠杆** | 排序投票：平等 0.40 → 20/80 0.14；二次方：0.66 → 0.21 |
 | 二次方投票比排序投票更能反映强烈偏好 | 平等权力下 0.66 vs 0.42 |
-| 有敌意发言时，**轮流发言**恢复了少数派的发言份额 | 0.12 → 0.20；胜出概率 0.36 → 0.67–0.68 |
-| EAP 筛查在此基础上再加一点 | → 0.75–0.76（仍有约 20 % 的敌意发言漏检） |
-| **没有敌意时，筛查反而伤害少数派** | 0.68–0.70 → 0.59–0.61：约 2.5 % 的正常发言被误标，而被误标的正是少数派的批评 |
+| 有敌意发言时，**轮流发言**恢复了少数派的发言份额 | 0.12 → 0.20；胜出概率 0.34–0.40 → 0.67–0.68 |
+| EAP 筛查在此基础上再加一点 | → 0.74–0.76（仍有约 20 % 的敌意发言漏检） |
+| **没有敌意时，筛查反而伤害少数派** | 0.67–0.70 → 0.60–0.62：被误标的正是少数派的批评 |
 
-最后一行最重要：**安全阀的误报，由它本来要保护的人承担。** 这与 PoL2 的要求（批评不是恨）和 PoL2-Jev 文献综述的负面结果一致——筛查必须有人类复核和本地校准，不能直接删帖。
+最后一行最重要：**安全阀的误报，由它本来要保护的人承担。** 这与 PoL2 的要求（批评不是恨）和 PoL2-Jev 文献综述的负面结果一致——筛查必须有人类复核和本地校准，不能直接删帖。E4、E5 进一步说明：误报本身不致命，致命的是误报**偏向**异见。
 
 > ⚠️ 这是一个**模型**，不是关于真实人群的证据。所有行为假设都是 `Scenario` 的参数，列在 [docs/experiment-design.md](docs/experiment-design.md)。模拟的用途是理清机制之间的相互作用、为真实实验设计假设。
+
+### 3. 实验图集：14 个实验 E0–E13
+
+每个实验的设定、数字和局限写在 **[docs/results.md](docs/results.md)**。下面是主要图表。
+
+#### 每个机制各贡献多少（E0）
+![E0 机制分解](results/figures/e0_mechanism_decomposition.png)
+从论文里最差的条件出发，每次加一个 PoL2 机制。没有敌意时，主要贡献来自平等权力与二次方投票；有敌意时，最大的一步是轮流发言（+0.33）。
+
+#### 结论在多大范围内成立（E1）
+![E1 敏感性热图](results/figures/e1_sensitivity_heatmaps.png)
+恐吓越强、敌意越多，PoL2 的优势越大（最高 +0.86）；没有敌意时略有代价；说服力为 0 时两者没有区别。
+
+#### 偏好强度 · 规模（E2、E3）
+![E2 偏好强度](results/figures/e2_preference_intensity.png)
+![E3 规模](results/figures/e3_scale.png)
+排序投票几乎不随偏好强度变化；组越大，20/80 越压倒少数派（n = 100 时少数派胜出概率 0.01），而 PoL2 下升到 0.91。少数派只占 10 % 时，什么机制都救不了。
+
+#### 安全阀：要多准、会不会偏（E4、E5）
+![E4 判定器工作点](results/figures/e4_judge_operating_point.png)
+![E5 判定器偏见](results/figures/e5_judge_bias.png)
+判定器 AUROC 低于约 0.8 时几乎没有收益；如果它把少数派的批评当成恨语，超过 1.5σ 的偏见就会让「有筛查」比「不筛查」更差。
+
+#### 女巫攻击 · PAI 自主决策 · 声音的消失（E6–E8）
+![E6 女巫攻击](results/figures/e6_sybil_attack.png)
+![E7 PAI 自主决策](results/figures/e7_pai_autonomy_vs_voting.png)
+![E8 发言动态](results/figures/e8_voice_dynamics.png)
+一人多号能击穿二次方投票，所以「人人平等」需要人格证明。PAI 自主决策（第七章第 2 条）在大家都诚实时几乎完美，但只要 20 % 的人夸大偏好，它就不再比二次方投票好。自由发言时，少数派的声音在第一轮内就下降，只有轮流发言能一直保持公平份额。
+
+#### 筛查器评测：NaturalDAO 公开试例 · 双语压力测试（E9、E10）
+![E9 NaturalDAO 试例](results/figures/e9_pilot_benchmark.png)
+![E10 压力测试](results/figures/e10_stress_corpus.png)
+在 NaturalDAO PoL-Governance 的 20 条公开试例上，盲测版词表的召回率是 0 %：PoL2 所说的违规（不诚实、越过同意边界、工具滥用）远比恨语宽。压力测试显示，否定、引用、变形拼写、隐晦敌意是关键词方法的盲区。
+
+#### 真实数据 · 决策链 · 文献地图（E11–E13）
+![E11 论文数据总览](results/figures/e11_published_overview.png)
+![E12 决策链](results/figures/e12_decision_chain.png)
+![E13 文献地图](results/figures/e13_literature_map.png)
+第 1 轮「二次方 + 20/80」中，代币份额领先的是选项 4，但按二次方规则胜出的是选项 3：规则本身抵消了权力集中造成的影响。决策链验证 10,000 条记录约需 40 ms，篡改会被精确定位到被改的那一条。
 
 ## 目录结构
 
@@ -146,15 +186,21 @@ pol2-dao-governance/
 │   ├── metrics.py        基尼系数、中本聪系数、平等权重遗憾值
 │   ├── ledger.py         可验证决策链（SHA-256 哈希链）
 │   ├── protocol.py       一次完整的 PoL2 治理会话
-│   ├── simulate.py       基于智能体的模拟
+│   ├── simulate.py       基于智能体的模拟（含合成判定器、女巫攻击、发言轨迹）
+│   ├── autonomy.py       PAI 自主决策（第七章第 2 条）
 │   ├── replay.py         用真实选票做平等预算反事实
+│   ├── experiments/      E0–E13 实验套件（机制、筛查、自主决策、判定器评测、数据）
 │   ├── figures.py        作图（可选）
 │   ├── demo.py  cli.py
-├── data/                 论文公布的汇总数字（来源见 data/README.md）
-├── results/              生成的表格、图和示例决策链
+├── data/
+│   ├── sharma2026_*.csv       论文公布的汇总数字
+│   ├── eap_stress_corpus.csv  96 句双语压力测试语料（本仓库编写）
+│   └── external/              NaturalDAO 的 CC0 数据：公开试例、文献综述
+├── results/              生成的表格（18 个 CSV）、图（17 张）和示例决策链
 ├── examples/             自定义判定模型示例
-├── tests/                36 个测试
+├── tests/                49 个测试
 └── docs/
+    ├── results.md             实验结果图集（E0–E13）
     ├── concept-mapping.md     PoL2 条款 ↔ 机制 ↔ 代码 ↔ 测试
     ├── experiment-design.md   研究问题、模型假设、指标、局限、下一步真实实验
     └── upload-to-github.md    如何上传到你自己的 GitHub
@@ -163,13 +209,15 @@ pol2-dao-governance/
 ## 局限（请先读这里）
 
 - `LexiconJudge` 是一个**透明的占位基线**（关键词规则），不是经过验证的分类器。它会漏检不带关键词的敌意，也会误标「This stupid default…」这类对事不对人的粗话。真实部署请接入模型，并按本地数据用 `fit_threshold()` 校准。
-- 这里的「PAI」是一段确定性的程序，不是 AI。PoL2 第七章第 2 条设想 NaturalDAO 无需人类投票即可自主决策；本仓库有意保留人类投票作为输入，以便比较——这一张力写在 [docs/concept-mapping.md](docs/concept-mapping.md#尚未解决的问题)。
+- 这里的「PAI」是一段确定性的程序，不是 AI。PoL2 第七章第 2 条设想 NaturalDAO 无需人类投票即可自主决策；本仓库保留人类投票作为输入，并在 E7 中把两者放在一起比较——这一张力写在 [docs/concept-mapping.md](docs/concept-mapping.md#尚未解决的问题)。
+- `LexiconJudge.v1()` 是在读过 NaturalDAO 公开试例之后补充的，它在这 20 条试例上的结果**不是盲测**。
+- 没有实现人格证明（防女巫）。E6 表明它是平等联结的前置条件。
 - 决策链目前把选票以化名公开记录。真实部署需要隐私设计（如承诺-揭示、零知识证明）。
 - 平等预算反事实假设人们的分配比例不随预算变化。
 
 ## 致谢与引用
 
-- 爱2证明：[NaturalDAO](https://github.com/naturaldao/NaturalDAO)（CC0-1.0）。
+- 爱2证明：[NaturalDAO](https://github.com/naturaldao/NaturalDAO)（CC0-1.0）。公开试例与文献综述数据来自其 `PoL-Governance/` 目录（CC0），复制于 commit `30f1ad6`。
 - DAO 实验：Sharma, T. et al. *Democratic governance through DAO-based deliberation and voting for inclusive decision making in AI models.* Scientific Reports 16, 11792 (2026). <https://doi.org/10.1038/s41598-026-40180-8>。数据：<https://osf.io/q6snh/>。
 - 汇总数字的复现：[dao-governance-replication](https://github.com/shentonyan/dao-governance-replication)。
 - 引用本仓库：见 [CITATION.cff](CITATION.cff)。

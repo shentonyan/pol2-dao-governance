@@ -80,6 +80,19 @@ def cmd_replay(args) -> int:
     return 0
 
 
+def cmd_experiments(args) -> int:
+    if not _have_matplotlib():
+        return 1
+    from . import experiments
+
+    only = [x.strip().upper() for x in args.only.split(",")] if args.only else None
+    res = experiments.run(_results(args), args.reps, only)
+    for eid, paths in res.items():
+        for p in paths:
+            print(f"{eid}: wrote {p}")
+    return 0
+
+
 def cmd_verify(args) -> int:
     chain = DecisionChain.from_jsonl(args.path)
     ok, bad = chain.verify()
@@ -113,6 +126,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--exclude-pilots", action="store_true")
     p.add_argument("--out", default="results")
     p.set_defaults(fn=cmd_replay)
+
+    p = sub.add_parser("experiments", help="run the E0-E13 experiment suite (needs matplotlib)")
+    p.add_argument("--only", default="", help="comma-separated ids, e.g. E1,E4")
+    p.add_argument("--reps", type=int, default=1000)
+    p.add_argument("--out", default="results")
+    p.set_defaults(fn=cmd_experiments)
 
     p = sub.add_parser("verify", help="check a decision chain JSONL file")
     p.add_argument("path")

@@ -1,0 +1,13 @@
+scenario,critic_bias,minority_win,regret,critical_flag_rate,hostile_miss_rate
+hostile,0.0,0.733,0.05283,0.01821,0.63979
+hostile,0.5,0.752,0.05024,0.05775,0.63748
+hostile,1.0,0.705,0.05996,0.14788,0.63512
+hostile,1.5,0.666,0.07167,0.29015,0.63903
+hostile,2.0,0.577,0.09332,0.47816,0.63656
+hostile,2.5,0.499,0.11426,0.67409,0.63535
+baseline,0.0,0.667,0.06759,0.01875,nan
+baseline,0.5,0.649,0.07336,0.06054,nan
+baseline,1.0,0.62,0.07977,0.14925,nan
+baseline,1.5,0.593,0.08851,0.29026,nan
+baseline,2.0,0.525,0.10586,0.47296,nan
+baseline,2.5,0.433,0.13255,0.67075,nan

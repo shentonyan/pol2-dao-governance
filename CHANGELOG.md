@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 — 2026-09-29
+
+Experiment suite and richer data.
+
+- `pol2dao experiments`: 14 experiments E0–E13 with 14 new figures and 15 new tables, documented in `docs/results.md`.
+- Simulation: pluggable flaggers (`lexicon_flagger`, synthetic `noisy_flagger` with chosen AUROC / false-flag rate / bias against dissent), sybil attacks, message traces; round-robin order is now shuffled per pod (was by group), ~2× faster.
+- `autonomy.py`: PAI-autonomous decisions (PoLEn ch. 7 Art. 2) for comparison with voting.
+- `LexiconJudge.v1()`: three PoL2-anchored categories (dignity ranking, conditional love, isolation).
+- Data: 96-sentence bilingual EAP stress corpus; NaturalDAO PoL-Governance pilot and literature-survey data (CC0); rule-based winners added to the published token totals.
+- Fonts: CJK fallback in figures when a CJK font is installed.
+- 49 tests.
+
 ## 0.1.0 — 2026-09-29
 
 First version.
