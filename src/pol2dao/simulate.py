@@ -279,6 +279,16 @@ def run_once(sc: Scenario, cond: Condition, behavior: Behavior, rng: random.Rand
     }
 
 
+def _ci(xs: Sequence[float]) -> float:
+    """Half-width of a normal-approximation 95 % interval of the mean."""
+    n = len(xs)
+    if n < 2:
+        return float("nan")
+    m = sum(xs) / n
+    var = sum((x - m) ** 2 for x in xs) / (n - 1)
+    return 1.96 * math.sqrt(var / n)
+
+
 def _seed(*parts: object) -> int:
     return zlib.crc32("|".join(map(str, parts)).encode())
 
@@ -310,6 +320,8 @@ def run_grid(reps: int = 400, scenarios: Sequence[Scenario] = SCENARIOS,
                         "condition": cond.name, "rule": cond.rule, "power": cond.power,
                         "moderation": cond.moderation, "screening": cond.screening, "reps": reps,
                         "minority_win": mean(r["minority_win"] for r in runs),
+                        "minority_win_ci": _ci([r["minority_win"] for r in runs]),
+                        "regret_ci": _ci([r["regret"] for r in runs]),
                         "majority_win": mean(r["majority_win"] for r in runs),
                         "optimum_hit": mean(r["optimum_hit"] for r in runs),
                         "regret": mean(r["regret"] for r in runs),

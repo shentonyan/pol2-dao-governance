@@ -48,8 +48,8 @@ def cmd_simulate(args) -> int:
 
         for metric, label in (("minority_win", "P(minority's option wins)"),
                               ("regret", "equal-weight regret")):
-            p = simulation_figure(rows, metric, out / "figures" / f"simulation_{metric}.png", label)
-            print(f"wrote {p}")
+            for p in simulation_figure(rows, metric, out / "figures" / f"simulation_{metric}", label):
+                print(f"wrote {p}")
     return 0
 
 
@@ -63,10 +63,10 @@ def cmd_published(args) -> int:
     if not args.no_figures and _have_matplotlib():
         from .figures import published_counterfactual_figure
 
-        p = published_counterfactual_figure(ROOT / "data" / "sharma2026_token_totals.csv",
-                                            ROOT / "data" / "sharma2026_table1_means.csv",
-                                            out / "figures" / "published_equal_budget_counterfactual.png")
-        print(f"wrote {p}")
+        for p in published_counterfactual_figure(ROOT / "data" / "sharma2026_token_totals.csv",
+                                                 ROOT / "data" / "sharma2026_table1_means.csv",
+                                                 out / "figures" / "published_equal_budget_counterfactual"):
+            print(f"wrote {p}")
     return 0
 
 

@@ -5,7 +5,7 @@ from .ledger import DecisionChain
 from .protocol import Decision, GovernanceConfig, GovernanceSession, Proposal
 from .voting import Ballot, tally
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "Ballot", "CallableJudge", "Decision", "DecisionChain", "GovernanceConfig",

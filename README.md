@@ -72,7 +72,7 @@ pol2dao verify results/demo_decision_chain.jsonl
 pol2dao published                  # 用论文公布的数字做「平等预算」反事实
 pol2dao simulate --reps 1000       # 主模拟：4 个论文条件 + PoL2 + 消融（约 30 秒）
 pol2dao experiments --reps 1000    # 全部 14 个实验 E0–E13，生成全部图表（约 3 分钟）
-pytest                             # 49 个测试
+pytest                             # 54 个测试
 ```
 
 有 OSF 原始数据（<https://osf.io/q6snh/>，本仓库不附带）时，可以逐张选票重放：
@@ -138,6 +138,13 @@ print(s.finalize().to_dict())
 
 ### 3. 实验图集：14 个实验 E0–E13
 
+所有图表都遵循统一的[制图规范](docs/figure-style.md)（参照 [figures4papers](https://github.com/ChenLiu-1996/figures4papers)）：
+- 颜色语义固定：蓝 = PoL2，红 = 论文里的二次方投票基线，灰 = 论文里的排序投票基线，绿 = 变体；
+- 虚线和斜线阴影表示 20/80 权力集中；
+- 阴影带和误差棒是 95 % 置信区间；
+- ↑ / ↓ 标明指标越高越好还是越低越好；
+- 每张图同时有 PNG（300 dpi）和矢量 PDF。
+
 每个实验的设定、数字和局限写在 **[docs/results.md](docs/results.md)**。下面是主要图表。
 
 #### 每个机制各贡献多少（E0）
@@ -190,17 +197,20 @@ pol2-dao-governance/
 │   ├── autonomy.py       PAI 自主决策（第七章第 2 条）
 │   ├── replay.py         用真实选票做平等预算反事实
 │   ├── experiments/      E0–E13 实验套件（机制、筛查、自主决策、判定器评测、数据）
+│   ├── plotstyle.py      制图规范的唯一实现（调色板、字体、导出）
 │   ├── figures.py        作图（可选）
 │   ├── demo.py  cli.py
 ├── data/
 │   ├── sharma2026_*.csv       论文公布的汇总数字
 │   ├── eap_stress_corpus.csv  96 句双语压力测试语料（本仓库编写）
 │   └── external/              NaturalDAO 的 CC0 数据：公开试例、文献综述
-├── results/              生成的表格（18 个 CSV）、图（17 张）和示例决策链
+├── results/              生成的表格（18 个 CSV）、图（17 张，每张 PNG + PDF）和示例决策链
 ├── examples/             自定义判定模型示例
-├── tests/                49 个测试
+├── tests/                54 个测试（含制图规范检查）
+├── CLAUDE.md             项目记忆：给 Claude Code 等编程助手的约定（含制图规范）
 └── docs/
     ├── results.md             实验结果图集（E0–E13）
+    ├── figure-style.md        制图规范
     ├── concept-mapping.md     PoL2 条款 ↔ 机制 ↔ 代码 ↔ 测试
     ├── experiment-design.md   研究问题、模型假设、指标、局限、下一步真实实验
     └── upload-to-github.md    如何上传到你自己的 GitHub

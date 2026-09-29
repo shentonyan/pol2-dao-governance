@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-09-29
+
+House figure style.
+
+- `plotstyle.py`: one module for palette, typography, export and plot helpers, following the rules of ChenLiu-1996/figures4papers (restated, not copied; CC BY-NC 4.0).
+- All 17 figures migrated: semantic colours (blue = PoL2, red / grey = Sharma et al. baselines, green = variants), dashes + hatching for 20/80 power, 95 % CI bands and error bars, ↑/↓ metric direction, no in-figure footnotes, PNG 300 dpi + vector PDF.
+- CI columns (`*_ci`) added to all simulation tables; point estimates unchanged.
+- `CLAUDE.md` (project memory with the figure rules), `docs/figure-style.md`, `tests/test_figure_style.py`.
+- 54 tests.
+
 ## 0.2.0 — 2026-09-29
 
 Experiment suite and richer data.

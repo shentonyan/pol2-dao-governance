@@ -79,4 +79,5 @@ def test_experiments_smoke(tmp_path, eid):
 
     res = experiments.run(tmp_path, reps=4, only=[eid], log=lambda m: None)
     assert all(p.exists() for p in res[eid])
+    assert {p.suffix for p in res[eid]} == {".png", ".pdf"}   # house style: raster + vector
     assert list((tmp_path / "tables").glob("*.csv"))

@@ -13,11 +13,14 @@ from pathlib import Path
 from statistics import mean
 
 from .. import simulate
-from ..simulate import Scenario
-from ._common import (BASELINE, COND, COND_COLOR, HOSTILE, INK, MUTED, PALETTE, cell, frange,
-                      heat_labels, note, plt, save, seed, seq_cmap, style, write_csv)
+from ..plotstyle import (DIV_CMAP, DOWN, PALETTE, REF_LINE, UP, finalize_figure, heatmap, new_figure,
+                         plot_line)
+from ._common import BASELINE, COND, HOSTILE, cell, fig_path, frange, seed, write_csv
 
 STRAT = "strategic"
+WIN = "P(minority's option wins)" + UP
+SCEN_COLOR = {"baseline": PALETTE["blue_main"], "hostile": PALETTE["red_strong"]}
+SCEN_LABEL = {"baseline": "no hostility", "hostile": "hostile talk"}
 
 
 # ---------------------------------------------------------------------------
@@ -39,30 +42,22 @@ def e4_operating_point(out: Path, reps: int, log) -> list[Path]:
                 r = cell(sc, COND["pol2"], reps, STRAT, fl, key=("E4", sc_name, a, f))
                 g[i][j] = r["minority_win"] - ref["minority_win"]
                 rows.append({"scenario": sc_name, "auroc": a, "false_flag_rate": f,
-                             "minority_win": r["minority_win"], "no_screening": ref["minority_win"],
-                             "gain": g[i][j], "hostile_miss_rate": r["hostile_miss_rate"],
-                             "benign_flag_rate": r["benign_flag_rate"]})
+                             "minority_win": r["minority_win"], "minority_win_ci": r["minority_win_ci"],
+                             "no_screening": ref["minority_win"], "gain": g[i][j],
+                             "hostile_miss_rate": r["hostile_miss_rate"], "benign_flag_rate": r["benign_flag_rate"]})
             log(f"E4 {sc_name} auroc={a}")
         grids[sc_name] = g
     write_csv(rows, out, "e4_operating_point.csv")
-    p = plt()
-    from ._common import div_cmap
-
-    fig, axes = p.subplots(1, 2, figsize=(9.5, 3.6))
-    for ax, sc_name in zip(axes, ("hostile", "baseline")):
-        g = grids[sc_name]
-        ax.imshow(g, cmap=div_cmap(), vmin=-0.3, vmax=0.3, aspect="auto", origin="lower")
-        heat_labels(ax, g, "{:+.2f}", 1.1, -0.3, 0.3)
-        for t, row in zip(range(len(ax.texts)), [v for r_ in g for v in r_]):
-            ax.texts[t].set_color("white" if abs(row) > 0.18 else INK)
-        ax.set_xticks(range(len(ffr)), [f"{f:.0%}" for f in ffr], fontsize=7.5)
-        ax.set_yticks(range(len(aurocs)), [f"{a:.3g}" for a in aurocs], fontsize=7.5)
-        style(ax, f"{sc_name} scenario: gain from screening vs no screening",
-              "judge AUROC" if sc_name == "hostile" else None, "false-flag rate on benign messages", grid="")
-    note(fig, "Δ P(minority's option wins) = pol2 with a synthetic judge − pol2-no-screening; "
-              f"strategic voters, power held by majority, {reps} pods per cell")
-    fig.tight_layout()
-    return [save(fig, out, "e4_judge_operating_point.png")]
+    fig, axes = new_figure(1, 2, panel=(7.2, 5.4))
+    for k, (ax, sc_name) in enumerate(zip(axes[0], ("hostile", "baseline"))):
+        heatmap(ax, grids[sc_name], [f"{f:.0%}" if f >= 0.01 else f"{f:.1%}" for f in ffr],
+                [f"{a:.3g}" for a in aurocs], DIV_CMAP, -0.25, 0.25, fmt="{:+.2f}", fontsize=11,
+                colorbar=k == 1, cbar_label="Δ " + WIN)
+        ax.set_title(SCEN_LABEL[sc_name])
+        ax.set_xlabel("false-flag rate on benign messages")
+        if k == 0:
+            ax.set_ylabel("judge AUROC")
+    return finalize_figure(fig, fig_path(out, "e4_judge_operating_point"))
 
 
 # ---------------------------------------------------------------------------
@@ -72,33 +67,42 @@ def e4_operating_point(out: Path, reps: int, log) -> list[Path]:
 def e5_judge_bias(out: Path, reps: int, log) -> list[Path]:
     biases = frange(0, 2.5, 6)
     rows = []
+    refs = {}
     for sc_name, sc in (("hostile", replace(HOSTILE, power_holders="majority")),
                         ("baseline", replace(BASELINE, power_holders="majority"))):
+        refs[sc_name] = cell(sc, COND["pol2-no-screening"], reps, STRAT, key=("E5ref", sc_name))
         for b in biases:
             fl = simulate.noisy_flagger(0.886, 0.02, critic_bias=b, seed=seed("E5", b))
             r = cell(sc, COND["pol2"], reps, STRAT, fl, key=("E5", sc_name, b))
             rows.append({"scenario": sc_name, "critic_bias": b, "minority_win": r["minority_win"],
-                         "regret": r["regret"], "critical_flag_rate": r["critical_flag_rate"],
-                         "hostile_miss_rate": r["hostile_miss_rate"]})
+                         "minority_win_ci": r["minority_win_ci"], "regret": r["regret"], "regret_ci": r["regret_ci"],
+                         "critical_flag_rate": r["critical_flag_rate"], "hostile_miss_rate": r["hostile_miss_rate"],
+                         "no_screening_minority_win": refs[sc_name]["minority_win"],
+                         "no_screening_regret": refs[sc_name]["regret"]})
         log(f"E5 {sc_name}")
     write_csv(rows, out, "e5_judge_bias.csv")
-    p = plt()
-    fig, axes = p.subplots(1, 2, figsize=(9, 3.4))
-    for sc_name, col in (("hostile", PALETTE[1]), ("baseline", PALETTE[0])):
+    fig, axes = new_figure(1, 2, panel=(6.4, 5.2))
+    for sc_name in ("baseline", "hostile"):
         rs = [r for r in rows if r["scenario"] == sc_name]
-        axes[0].plot([r["critical_flag_rate"] for r in rs], [r["minority_win"] for r in rs],
-                     color=col, lw=2, marker="o", ms=4, label=sc_name, zorder=2)
-        for r in rs:
-            axes[0].annotate(f"bias {r['critic_bias']:.1f}", (r["critical_flag_rate"], r["minority_win"]),
-                             fontsize=6, color=MUTED, xytext=(3, 3), textcoords="offset points")
-        axes[1].plot(biases, [r["regret"] for r in rs], color=col, lw=2, marker="o", ms=4, zorder=2)
-    style(axes[0], "flagging dissent costs the minority the vote", "P(minority's option wins)",
-          "share of the minority's critical messages that get flagged")
-    style(axes[1], "equal-weight regret", "regret", "judge bias against critical messages (σ units)")
-    axes[0].legend(frameon=False, fontsize=7.5)
-    note(fig, "synthetic judge AUROC 0.886, 2 % false flags on neutral text; strategic voters, power held by majority")
-    fig.tight_layout()
-    return [save(fig, out, "e5_judge_bias.png")]
+        col = SCEN_COLOR[sc_name]
+        plot_line(axes[0][0], [r["critical_flag_rate"] for r in rs], [r["minority_win"] for r in rs], color=col,
+                  err=[r["minority_win_ci"] for r in rs], label=SCEN_LABEL[sc_name])
+        axes[0][0].axhline(refs[sc_name]["minority_win"], color=col, alpha=0.4, lw=3, ls="--")
+        plot_line(axes[0][1], biases, [r["regret"] for r in rs], color=col, err=[r["regret_ci"] for r in rs],
+                  label=SCEN_LABEL[sc_name])
+        axes[0][1].axhline(refs[sc_name]["regret"], color=col, alpha=0.4, lw=3, ls="--")
+    axes[0][0].set_xlabel("share of the minority's critical\nmessages that get flagged")
+    axes[0][0].set_ylabel(WIN)
+    axes[0][0].set_ylim(0.3, 0.85)
+    axes[0][1].set_xlabel("judge bias against dissent (σ)")
+    axes[0][1].set_ylabel("equal-weight regret" + DOWN)
+    from matplotlib.lines import Line2D
+
+    h, l = axes[0][0].get_legend_handles_labels()
+    h.append(Line2D([0], [0], color=PALETTE["black"], alpha=0.4, lw=3, ls="--"))
+    l.append("no screening")
+    axes[0][0].legend(h, l, loc="lower left")
+    return finalize_figure(fig, fig_path(out, "e5_judge_bias"))
 
 
 # ---------------------------------------------------------------------------
@@ -123,27 +127,23 @@ def e8_dynamics(out: Path, reps: int, log) -> list[Path]:
                 acc[i] += m
         curves[cname] = [a / reps for a in acc]
         for rd in range(sc.rounds):
-            seg = curves[cname][rd * n:(rd + 1) * n]
-            rows.append({"condition": cname, "round": rd + 1, "minority_share": mean(seg)})
+            rows.append({"condition": cname, "round": rd + 1,
+                         "minority_share": mean(curves[cname][rd * n:(rd + 1) * n])})
         log(f"E8 {cname}")
     write_csv(rows, out, "e8_dynamics.csv")
-    p = plt()
-    fig, ax = p.subplots(figsize=(9, 3.6))
-    w = n  # one round
+    fig, axes = new_figure(1, 1, panel=(11, 5.0))
+    ax = axes[0][0]
+    half = n // 2                          # one-round moving average, full windows only (no edge artefacts)
+    xs = list(range(half + 1, total - half + 1))
     for cname in conds:
         c = curves[cname]
-        smooth = []
-        for i in range(total):
-            half = min(w // 2, i, total - 1 - i)   # symmetric window, so the edges are not biased
-            smooth.append(mean(c[i - half:i + half + 1]))
-        ax.plot(range(1, total + 1), smooth, color=COND_COLOR[cname], lw=2, label=cname, zorder=2)
-    ax.axhline(sc.minority_frac, color=MUTED, lw=0.8, ls=":")
-    ax.text(total, sc.minority_frac + 0.005, "fair share (20 %)", ha="right", fontsize=7, color=MUTED)
-    for rd in range(1, sc.rounds):
-        ax.axvline(rd * n + 0.5, color=MUTED, lw=0.5, ls="--")
-    style(ax, "share of messages spoken by the minority, over the course of a deliberation",
-          "minority share of messages (moving average, 1 round)", "message number (6 rounds × 25 people)")
-    ax.legend(frameon=False, fontsize=7.5, loc="lower left")
-    note(fig, f"hostile scenario, power held by majority, strategic voters, {reps} pods per curve")
-    fig.tight_layout()
-    return [save(fig, out, "e8_voice_dynamics.png")]
+        smooth = [mean(c[i - half:i + half + 1]) for i in range(half, total - half)]
+        plot_line(ax, xs, smooth, cname, marker="")
+    ax.axhline(sc.minority_frac, **REF_LINE, label="fair share (20 %)")
+    ax.set_xticks([n * k + n / 2 for k in range(sc.rounds)], [str(k + 1) for k in range(sc.rounds)])
+    ax.set_xlabel("deliberation round")
+    ax.set_ylabel("minority share of messages" + UP)
+    ax.set_ylim(0, 0.25)
+    ax.set_xlim(0, total)
+    ax.legend(loc="lower right", ncols=3)
+    return finalize_figure(fig, fig_path(out, "e8_voice_dynamics"))

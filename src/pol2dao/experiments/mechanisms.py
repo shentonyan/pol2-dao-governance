@@ -12,11 +12,13 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-from ..simulate import CONDITIONS, Condition, Scenario
-from ._common import (BASELINE, COND, COND_COLOR, HOSTILE, INK, MUTED, PALETTE, cell, div_cmap,
-                      frange, heat_labels, note, plt, save, seq_cmap, style, write_csv)
+from ..plotstyle import (DIV_CMAP, DOWN, PALETTE, REF_LINE, SEQ_CMAP, UP, annotate_bars, bar, finalize_figure,
+                         heatmap, new_figure, plot_line)
+from ..simulate import Condition
+from ._common import BASELINE, COND, HOSTILE, cell, fig_path, frange, write_csv
 
 STRAT = "strategic"
+WIN = "P(minority's option wins)" + UP
 
 
 # ---------------------------------------------------------------------------
@@ -24,11 +26,11 @@ STRAT = "strategic"
 # ---------------------------------------------------------------------------
 
 STEPS = [
-    ("ranked · 20/80\nfree talk", Condition("s0", "linear", "20/80")),
-    ("+ equal power", Condition("s1", "linear", "equal")),
-    ("+ quadratic", Condition("s2", "quadratic", "equal")),
-    ("+ turn-taking", Condition("s3", "quadratic", "equal", "round_robin")),
-    ("+ EAP screening\n(= pol2)", Condition("s4", "quadratic", "equal", "round_robin", True)),
+    ("ranked\n20/80\nfree talk", Condition("s0", "linear", "20/80")),
+    ("+ equal\npower", Condition("s1", "linear", "equal")),
+    ("+ quadratic\nvoting", Condition("s2", "quadratic", "equal")),
+    ("+ turn-\ntaking", Condition("s3", "quadratic", "equal", "round_robin")),
+    ("+ EAP\nscreening", Condition("s4", "quadratic", "equal", "round_robin", True)),
 ]
 
 
@@ -39,33 +41,35 @@ def e0_decomposition(out: Path, reps: int, log) -> list[Path]:
         for label, cond in STEPS:
             c = cell(sc, cond, reps, STRAT, key=("E0", sc_name))
             rows.append({"scenario": sc_name, "step": label.replace("\n", " "),
-                         "minority_win": c["minority_win"], "regret": c["regret"],
-                         "minority_voice_share": c["minority_voice_share"]})
+                         "minority_win": c["minority_win"], "minority_win_ci": c["minority_win_ci"],
+                         "regret": c["regret"], "minority_voice_share": c["minority_voice_share"]})
     write_csv(rows, out, "e0_decomposition.csv")
     log("E0 done")
-    p = plt()
-    fig, axes = p.subplots(1, 2, figsize=(9, 3.4), sharey=True)
-    for ax, sc_name in zip(axes, ("baseline", "hostile")):
-        vals = [r["minority_win"] for r in rows if r["scenario"] == sc_name]
-        xs = range(len(vals))
+    fig, axes = new_figure(1, 2, panel=(7.6, 5.6), sharey=True)
+    for ax, sc_name in zip(axes[0], ("baseline", "hostile")):
+        rs = [r for r in rows if r["scenario"] == sc_name]
+        vals = [r["minority_win"] for r in rs]
+        ax.set_ylim(0, 1.0)
         prev = 0.0
         for i, v in enumerate(vals):
             if i == 0:
-                ax.bar(i, v, 0.6, color=PALETTE[3], zorder=2)
+                b = bar(ax, [i], [v], name="ranked-20/80", width=0.62)
+                annotate_bars(ax, b, [v])
             else:
                 d = v - prev
-                ax.bar(i, d, 0.6, bottom=prev, color=PALETTE[0] if d >= 0 else PALETTE[1], zorder=2)
-                ax.plot([i - 1 + 0.3, i - 0.3], [prev, prev], color=MUTED, lw=0.8)
-                ax.text(i, max(v, prev) + 0.02, f"{d:+.2f}", ha="center", fontsize=7.5, color=INK)
+                bar(ax, [i], [d], color=PALETTE["green_3"] if d >= 0 else PALETTE["red_2"], hatch="",
+                    width=0.62, bottom=prev)
+                ax.plot([i - 1 + 0.31, i - 0.31], [prev, prev], color=PALETTE["black"], lw=1.2, zorder=2)
+                ax.text(i, max(v, prev) + 0.02, f"{d:+.2f}", ha="center", va="bottom")
             prev = v
-        ax.plot(len(vals) - 1, prev, marker="o", color=PALETTE[6], ms=7, zorder=3)
-        ax.set_xticks(list(xs), [s[0] for s in STEPS], fontsize=7.5)
-        style(ax, f"{sc_name} scenario · power held by majority · strategic voters",
-              "P(minority's option wins)" if sc_name == "baseline" else None)
-        ax.set_ylim(0, 1)
-    note(fig, "each step adds one PoL2 mechanism on top of the previous; blue = gain, orange = loss")
-    fig.tight_layout()
-    return [save(fig, out, "e0_mechanism_decomposition.png")]
+        k = len(vals)
+        ax.plot([k - 1 + 0.31, k - 0.31], [prev, prev], color=PALETTE["black"], lw=1.2, zorder=2)
+        b = bar(ax, [k], [prev], name="pol2", width=0.62, err=[rs[-1]["minority_win_ci"]])
+        ax.text(k, prev + rs[-1]["minority_win_ci"] + 0.02, f"{prev:.2f}", ha="center", va="bottom")
+        ax.set_xticks(range(k + 1), [s[0] for s in STEPS] + ["pol2\ntotal"], fontsize=12)
+        ax.set_title("no hostility" if sc_name == "baseline" else "hostile talk (30 % of majority messages)")
+    axes[0][0].set_ylabel(WIN)
+    return finalize_figure(fig, fig_path(out, "e0_mechanism_decomposition"))
 
 
 # ---------------------------------------------------------------------------
@@ -87,34 +91,27 @@ def e1_sensitivity(out: Path, reps: int, log) -> list[Path]:
                     r = cell(sc, COND[cname], reps, STRAT, key=("E1", name, i, j))
                     g[cname][i][j] = r["minority_win"]
                     rows.append({"param": param, "value": v, "hate_rate": h, "condition": cname,
-                                 "minority_win": r["minority_win"], "regret": r["regret"]})
+                                 "minority_win": r["minority_win"], "minority_win_ci": r["minority_win_ci"],
+                                 "regret": r["regret"]})
             log(f"E1 {name} row {i + 1}/{len(values)}")
-        grids[name] = g
+        grids[name] = (values, g)
     write_csv(rows, out, "e1_sensitivity.csv")
-    p = plt()
-    fig, axes = p.subplots(2, 3, figsize=(11, 6.2))
-    for r_, (name, values) in enumerate((("intimidation", intim), ("persuasion", pers))):
-        g = grids[name]
-        diff = [[g["pol2"][i][j] - g["quadratic-equal"][i][j] for j in range(len(hate))]
-                for i in range(len(values))]
-        for c_, (title, data, cmap, vmin, vmax) in enumerate((
-                ("quadratic-equal (Sharma condition)", g["quadratic-equal"], seq_cmap(), 0, 1),
-                ("pol2", g["pol2"], seq_cmap(), 0, 1),
-                ("pol2 − quadratic-equal", diff, div_cmap(), -0.5, 0.5))):
-            ax = axes[r_][c_]
-            ax.imshow(data, cmap=cmap, vmin=vmin, vmax=vmax, aspect="auto", origin="lower")
-            heat_labels(ax, data, "{:+.2f}" if c_ == 2 else "{:.2f}", 0.75 if c_ < 2 else 1.1, vmin, vmax)
-            if c_ == 2:
-                for i, row in enumerate(data):
-                    for j, v in enumerate(row):
-                        ax.texts[i * len(hate) + j].set_color("white" if abs(v) > 0.3 else INK)
-            ax.set_xticks(range(len(hate)), [f"{h:.1f}" for h in hate], fontsize=7.5)
-            ax.set_yticks(range(len(values)), [f"{v:.1f}" for v in values], fontsize=7.5)
-            style(ax, title, name if c_ == 0 else None, "hate rate (share of majority messages)" if r_ == 1 else None, grid="")
-    note(fig, "P(minority's option wins), strategic voters, power held by majority; each cell = "
-              f"{reps} pods")
-    fig.tight_layout()
-    return [save(fig, out, "e1_sensitivity_heatmaps.png")]
+    fig, axes = new_figure(2, 3, panel=(6.4, 5.2))
+    hl = [f"{h:.1f}" for h in hate]
+    for r_, name in enumerate(("intimidation", "persuasion")):
+        values, g = grids[name]
+        vl = [f"{v:.1f}" for v in values]
+        diff = [[g["pol2"][i][j] - g["quadratic-equal"][i][j] for j in range(len(hate))] for i in range(len(values))]
+        heatmap(axes[r_][0], g["quadratic-equal"], hl, vl, SEQ_CMAP, 0, 1, fontsize=10, cbar_label=WIN)
+        heatmap(axes[r_][1], g["pol2"], hl, vl, SEQ_CMAP, 0, 1, fontsize=10, cbar_label=WIN)
+        heatmap(axes[r_][2], diff, hl, vl, DIV_CMAP, -0.9, 0.9, fmt="{:+.2f}", fontsize=10,
+                cbar_label="pol2 − quadratic-equal")
+        axes[r_][0].set_ylabel(name)
+        for c_ in range(3):
+            axes[r_][c_].set_xlabel("hate rate")
+    for c_, t in enumerate(("quadratic-equal (Sharma et al.)", "pol2", "difference")):
+        axes[0][c_].set_title(t)
+    return finalize_figure(fig, fig_path(out, "e1_sensitivity_heatmaps"))
 
 
 # ---------------------------------------------------------------------------
@@ -132,31 +129,30 @@ def e2_intensity(out: Path, reps: int, log) -> list[Path]:
             for beh in ("sincere", "strategic"):
                 r = cell(sc, COND[cname], reps, beh, key=("E2", s, beh))
                 rows.append({"intensity": s, "condition": cname, "behavior": beh,
-                             "minority_win": r["minority_win"], "optimum_hit": r["optimum_hit"],
-                             "optimum_is_minority_fav": r["optimum_is_minority_fav"],
-                             "regret": r["regret"]})
+                             "minority_win": r["minority_win"], "minority_win_ci": r["minority_win_ci"],
+                             "optimum_hit": r["optimum_hit"], "optimum_is_minority_fav": r["optimum_is_minority_fav"],
+                             "regret": r["regret"], "regret_ci": r["regret_ci"]})
         log(f"E2 intensity {s:.2f}")
     write_csv(rows, out, "e2_intensity.csv")
-    p = plt()
-    fig, axes = p.subplots(1, 3, figsize=(11, 3.4))
-    for ax, (beh, metric, title) in zip(axes, (
-            ("strategic", "minority_win", "strategic · P(minority's option wins)"),
-            ("strategic", "regret", "strategic · equal-weight regret"),
-            ("sincere", "minority_win", "sincere · P(minority's option wins)"))):
+    fig, axes = new_figure(1, 3, panel=(5.6, 5.0))
+    opt = [r["optimum_is_minority_fav"] for r in rows if r["condition"] == conds[0] and r["behavior"] == STRAT]
+    first = next((s for s, o in zip(scales, opt) if o > 0.5), None)
+    for ax, (beh, metric, title, lab) in zip(axes[0], (
+            ("strategic", "minority_win", "strategic voters", WIN),
+            ("strategic", "regret", "strategic voters", "equal-weight regret" + DOWN),
+            ("sincere", "minority_win", "sincere voters", WIN))):
         for cname in conds:
-            ys = [r[metric] for r in rows if r["condition"] == cname and r["behavior"] == beh]
-            ax.plot(scales, ys, color=COND_COLOR[cname], lw=2, marker="o", ms=4, label=cname, zorder=2)
-        opt = [r["optimum_is_minority_fav"] for r in rows if r["condition"] == conds[0] and r["behavior"] == beh]
-        first = next((s for s, o in zip(scales, opt) if o > 0.5), None)
+            rs = [r for r in rows if r["condition"] == cname and r["behavior"] == beh]
+            plot_line(ax, scales, [r[metric] for r in rs], cname, err=[r[f"{metric}_ci"] for r in rs])
         if first is not None:
-            ax.axvline(first, color=MUTED, lw=0.8, ls=":")
-            ax.annotate(" from here on the minority's option\n is also the equal-weight optimum",
-                        xy=(first, 0.02), xycoords=("data", "axes fraction"), fontsize=6.5, color=MUTED, va="bottom")
-        style(ax, title, xlabel="minority preference intensity s")
-    axes[0].legend(frameon=False, fontsize=7.5)
-    note(fig, "minority_u = (0, 0, s, 0.2 s); hostile scenario (hate rate 0.3), power held by majority; " f"{reps} pods per point")
-    fig.tight_layout()
-    return [save(fig, out, "e2_preference_intensity.png")]
+            ax.axvline(first, **REF_LINE)
+        ax.set_title(title)
+        ax.set_xlabel("minority intensity s")
+        ax.set_ylabel(lab)
+        if metric != "regret":
+            ax.set_ylim(0, 1)
+    axes[0][0].legend(loc="upper left")
+    return finalize_figure(fig, fig_path(out, "e2_preference_intensity"))
 
 
 # ---------------------------------------------------------------------------
@@ -167,39 +163,42 @@ def e3_scale(out: Path, reps: int, log) -> list[Path]:
     sizes = [10, 15, 25, 40, 60, 100]
     fracs = [0.1, 0.2, 0.3, 0.4]
     conds = ["ranked-20/80", "quadratic-equal", "pol2"]
+    keep = ("minority_win", "minority_win_ci", "regret", "minority_voice_share", "nakamoto", "nakamoto_ci",
+            "influence_gini")
     rows = []
     for n in sizes:
         for cname in conds:
             r = cell(replace(HOSTILE, n=n, power_holders="majority"), COND[cname], reps, STRAT, key=("E3n", n))
-            rows.append({"sweep": "n", "value": n, "condition": cname, **{k: r[k] for k in
-                         ("minority_win", "regret", "minority_voice_share", "nakamoto", "influence_gini")}})
+            rows.append({"sweep": "n", "value": n, "condition": cname, **{k: r[k] for k in keep}})
         log(f"E3 n={n}")
     for f in fracs:
         for cname in conds:
-            r = cell(replace(HOSTILE, minority_frac=f, power_holders="majority"), COND[cname], reps, STRAT, key=("E3f", f))
-            rows.append({"sweep": "minority_frac", "value": f, "condition": cname, **{k: r[k] for k in
-                         ("minority_win", "regret", "minority_voice_share", "nakamoto", "influence_gini")}})
+            r = cell(replace(HOSTILE, minority_frac=f, power_holders="majority"), COND[cname], reps, STRAT,
+                     key=("E3f", f))
+            rows.append({"sweep": "minority_frac", "value": f, "condition": cname, **{k: r[k] for k in keep}})
     write_csv(rows, out, "e3_scale.csv")
-    p = plt()
-    fig, axes = p.subplots(1, 3, figsize=(11, 3.4))
+    fig, axes = new_figure(1, 3, panel=(5.6, 5.0))
     for cname in conds:
-        ys = [r["minority_win"] for r in rows if r["sweep"] == "n" and r["condition"] == cname]
-        axes[0].plot(sizes, ys, color=COND_COLOR[cname], lw=2, marker="o", ms=4, label=cname, zorder=2)
-        ys = [r["nakamoto"] / n for r, n in zip([r for r in rows if r["sweep"] == "n" and r["condition"] == cname], sizes)]
-        axes[1].plot(sizes, ys, color=COND_COLOR[cname], lw=2, marker="o", ms=4, zorder=2)
-        ys = [r["minority_win"] for r in rows if r["sweep"] == "minority_frac" and r["condition"] == cname]
-        axes[2].plot(fracs, ys, color=COND_COLOR[cname], lw=2, marker="o", ms=4, zorder=2)
-    axes[0].set_xscale("log")
-    axes[1].set_xscale("log")
-    axes[0].set_xticks(sizes, sizes)
-    axes[1].set_xticks(sizes, sizes)
-    style(axes[0], "pod size", "P(minority's option wins)", "n (log scale)")
-    style(axes[1], "how many people it takes to control >50 % of votes", "Nakamoto coefficient / n", "n (log scale)")
-    style(axes[2], "minority share (n = 25)", "P(minority's option wins)", "minority share of the pod")
-    axes[0].legend(frameon=False, fontsize=7.5)
-    note(fig, "hostile scenario, power held by majority, strategic voters; " f"{reps} pods per point")
-    fig.tight_layout()
-    return [save(fig, out, "e3_scale.png")]
+        rn = [r for r in rows if r["sweep"] == "n" and r["condition"] == cname]
+        plot_line(axes[0][0], sizes, [r["minority_win"] for r in rn], cname, err=[r["minority_win_ci"] for r in rn])
+        plot_line(axes[0][1], sizes, [r["nakamoto"] / n for r, n in zip(rn, sizes)], cname,
+                  err=[r["nakamoto_ci"] / n for r, n in zip(rn, sizes)])
+        rf = [r for r in rows if r["sweep"] == "minority_frac" and r["condition"] == cname]
+        plot_line(axes[0][2], fracs, [r["minority_win"] for r in rf], cname, err=[r["minority_win_ci"] for r in rf])
+    for ax in axes[0][:2]:
+        ax.set_xscale("log")
+        ax.set_xticks(sizes, [str(s) for s in sizes])
+        ax.minorticks_off()
+        ax.set_xlabel("pod size n")
+    axes[0][0].set_ylabel(WIN)
+    axes[0][0].set_ylim(0, 1)
+    axes[0][1].set_ylabel("Nakamoto coefficient / n" + UP)
+    axes[0][1].set_ylim(0, 0.55)
+    axes[0][2].set_ylabel(WIN)
+    axes[0][2].set_ylim(0, 1.02)
+    axes[0][2].set_xlabel("minority share (n = 25)")
+    axes[0][0].legend(loc="center right")
+    return finalize_figure(fig, fig_path(out, "e3_scale"))
 
 
 # ---------------------------------------------------------------------------
@@ -217,25 +216,24 @@ def e6_sybil(out: Path, reps: int, log) -> list[Path]:
                 for cname in ("ranked-equal", "quadratic-equal"):
                     r = cell(sc, COND[cname], reps, STRAT, key=("E6", mode, a, s))
                     rows.append({"mode": mode, "attackers": a, "ids_per_attacker": s, "condition": cname,
-                                 "minority_win": r["minority_win"], "majority_win": r["majority_win"],
-                                 "influence_gini": r["influence_gini"], "nakamoto": r["nakamoto"]})
+                                 "minority_win": r["minority_win"], "minority_win_ci": r["minority_win_ci"],
+                                 "majority_win": r["majority_win"], "influence_gini": r["influence_gini"],
+                                 "nakamoto": r["nakamoto"]})
             log(f"E6 {mode} attackers={a}")
     write_csv(rows, out, "e6_sybil.csv")
-    p = plt()
-    fig, axes = p.subplots(1, 2, figsize=(9, 3.4), sharey=True)
-    for ax, mode in zip(axes, ("split", "fresh")):
-        for k, a in enumerate(attackers):
-            for cname, ls in (("ranked-equal", "-"), ("quadratic-equal", "--")):
-                ys = [r["minority_win"] for r in rows if r["mode"] == mode and r["attackers"] == a
-                      and r["condition"] == cname]
-                ax.plot(ids, ys, color=PALETTE[k], ls=ls, lw=2, marker="o", ms=4, zorder=2,
-                        label=f"{cname}, {a} attacker{'s' if a > 1 else ''}")
-        ax.set_xticks(ids, ids)
-        style(ax, {"split": "split: one budget spread over s identities",
-                   "fresh": "fresh: every identity gets a full budget"}[mode],
-              "P(minority's option wins)" if mode == "split" else None, "identities per attacker (s)")
-    axes[0].legend(frameon=False, fontsize=6.5, ncol=2)
-    note(fig, "baseline scenario, equal power, strategic voters; attackers are majority members; "
-              f"{reps} pods per point")
-    fig.tight_layout()
-    return [save(fig, out, "e6_sybil_attack.png")]
+    fig, axes = new_figure(1, 2, panel=(6.4, 5.2), sharey=True)
+    for ax, mode in zip(axes[0], ("split", "fresh")):
+        for cname in ("quadratic-equal", "ranked-equal"):
+            for a, ls, alpha in ((1, ":", 0.55), (5, "-", 1.0)):
+                rs = [r for r in rows if r["mode"] == mode and r["attackers"] == a and r["condition"] == cname]
+                err = [r["minority_win_ci"] for r in rs] if a == 5 else None   # one band per colour
+                plot_line(ax, ids, [r["minority_win"] for r in rs], cname, ls=ls, err=err,
+                          label=f"{cname}, {a} attacker{'s' if a > 1 else ''}", alpha=alpha)
+        ax.set_xticks(ids, [str(i) for i in ids])
+        ax.set_xlabel("identities per attacker")
+        ax.set_ylim(0, 0.85)
+        ax.set_title({"split": "one budget split over the identities",
+                      "fresh": "a full budget for every identity"}[mode])
+    axes[0][0].set_ylabel(WIN)
+    axes[0][0].legend(loc="lower left", fontsize=12)
+    return finalize_figure(fig, fig_path(out, "e6_sybil_attack"))
