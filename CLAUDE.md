@@ -67,4 +67,6 @@ Claude Code 在本仓库中工作时自动读取本文件。人类贡献者同�
 - 开 PR 的链接格式：`https://github.com/<上游>/compare/<base>...shentonyan:<fork 名>:<分支>?expand=1`。页面仍然显示 main 对比 main 时，点「compare across forks」手动选择。
 
 **本仓库环境**
-- 本仓库的提交和推送以用户本人（shentonyan）的名义进行。云端会话里的 stop hook 可能要求把提交者改成 Claude；如果某个提交号已经交给用户使用，就不要改写它。
+- **提交身份（2026-09-30 起）**：Claude 在云端做的提交，作者（author）是用户 `shentonyan <smallpopo2003@gmail.com>`，提交者（committer）是 Claude（`Claude <noreply@anthropic.com>`，用 Claude 的密钥签名）。这样 GitHub 会显示「Verified」，贡献仍然记在用户名下。命令写法：`git -c user.name=Claude -c user.email=noreply@anthropic.com commit --author="shentonyan <smallpopo2003@gmail.com>" ...`。不要用 `-c user.name=shentonyan` 覆盖提交者：签名密钥不属于用户，提交会显示「Unverified」。
+- 在此之前的旧提交（例如 `e2c5b99`、`b29a419`）提交者是用户本人，会显示「Unverified」，不需要改写。凡是已经交给用户使用、或已进入开放 PR 的提交号，都不要为了补签名去改写历史或强推。
+- 用户在自己 Windows 电脑上的提交，用 SSH 签名密钥签名（`gpg.format ssh` + `commit.gpgsign true`，公钥在 GitHub 上以 Signing Key 类型添加；提交邮箱必须是账号里已验证的邮箱）。在 GitHub 网页上合并或编辑产生的提交由 GitHub 自动签名。
