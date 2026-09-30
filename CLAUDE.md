@@ -41,3 +41,30 @@ Claude Code 在本仓库中工作时自动读取本文件。人类贡献者同�
 - 生成的结果放在 `results/`（表格放 `tables/`，图放 `figures/`）。改动影响图表时，重新运行 `pol2dao experiments` 并一起提交。
 - 外部数据注明来源、许可和 commit（见 `data/README.md`）。
 - 修改恨语词表时，要同时补上「应标记」和「应通过」的例句，尤其是「批评、愤怒不是恨」的反例。
+
+## 向上游仓库贡献 PR 的经验（2026-09-30）
+
+完整步骤和可直接使用的 PowerShell 函数见 `docs/contributing-upstream.md`。要点如下：
+
+**先确认权限，再动手**
+- Claude 的 GitHub App 只装在用户自己的账号（shentonyan）上，没有装在 naturaldao 组织以及其他第三方上游仓库上。在这些仓库上推送或 fork 会返回 403。
+- 遇到 403 时不要反复重试。把改动做成 **git bundle + `format-patch` 补丁 + `PR_TITLE.txt` / `PR_BODY.md`** 交给用户，由用户用自己的账号推送。
+- 用户在 NaturalDAO 本人有写权限，按 PoL-Governance 的约定使用组织内分支 `pol/<任务ID>/shenton`；其他上游仓库都通过用户名下的 fork 提 PR。
+
+**提交之前**
+- 先查重：搜索上游已有的 issue 和 PR，包括已关闭的。机器人抢 PR 很快的仓库（例如 hermes-webui），推送前要再查一次。
+- 检查上游是否写明「不接受贡献」（例如 anthropics/jacobian-lens）。
+- 查上游 main 最近的提交。NaturalDAO 在 2026-09-30 调整了 PoLEn 的章节号：伦理对齐协议（EAP）由第 5 章改为第 4 章，静观公理由第 4 章改为第 3 章，AI 与人类文明的治理由第 3 章改为第 5 章；中文原文 `PoL/` 的编号未变。**引用 PoL2 条款前，先核对当前的章节号。**
+- 补丁基于最新的上游分支生成，并用 `git apply --check` 验证能在上游最新代码上应用。
+- 涉及 PoL2 与他人研究的交叉时，先检查署名。例如 PoL2 第 3 章的部分句子与 shimo4228 修订后的宪法文本接近，发 issue 之前要先补上致谢。
+
+**给用户的命令（Windows PowerShell）**
+- 每个新开的 PowerShell 窗口都要重新设置路径变量 `$C`；每个 git 命令之前都要先 `cd` 进对应仓库目录。
+- 解压 zip 时常会多套一层同名目录。用 `Get-ChildItem -Recurse -Filter <文件名>` 找出实际路径。
+- PowerShell 不会展开 `*.patch` 通配符，要写成 `git am (Get-ChildItem "$C\<目录>\*.patch").FullName`。如果补丁路径不存在，`git am` 会停在「reading patches from stdin」等待输入，此时按 Ctrl+C，再执行 `git am --abort`。
+- **推送前先确认补丁确实已经应用**：`git rev-list --count upstream/<base>..HEAD` 必须大于 0。否则推上去的是一个空分支，GitHub 的对比页会退回成「main 对比 main」。
+- 如果远端已有同名分支，并且是用户已经推送过的旧版本，**在它上面追加一个提交**（先 `git checkout -B <分支> origin/<分支>`，再 `git checkout <新提交> -- <目录>`，然后 commit），不要强推覆盖。`--force-with-lease` 只用于用户自己 fork 上刚建的空分支。
+- 开 PR 的链接格式：`https://github.com/<上游>/compare/<base>...shentonyan:<fork 名>:<分支>?expand=1`。页面仍然显示 main 对比 main 时，点「compare across forks」手动选择。
+
+**本仓库环境**
+- 本仓库的提交和推送以用户本人（shentonyan）的名义进行。云端会话里的 stop hook 可能要求把提交者改成 Claude；如果某个提交号已经交给用户使用，就不要改写它。
