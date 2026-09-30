@@ -7,10 +7,10 @@
 1. 在 GitHub 网页上新建一个**空**仓库：<https://github.com/new>
    - Repository name：`pol2-dao-governance`（可以改名）
    - **不要**勾选 “Add a README / .gitignore / license”（本仓库已经有了）
-2. 在本仓库目录里执行（把 `<你的用户名>` 换成你的 GitHub 用户名）：
+2. 在本仓库目录里执行（把 `shentonyan` 换成你的 GitHub 用户名）：
 
    ```bash
-   git remote add origin https://github.com/<你的用户名>/pol2-dao-governance.git
+   git remote add origin https://github.com/shentonyan/pol2-dao-governance.git
    git push -u origin main
    ```
 
@@ -23,7 +23,7 @@ cd pol2-dao-governance
 git init -b main
 git add .
 git commit -m "Initial commit: PoL2 x DAO governance lab"
-git remote add origin https://github.com/<你的用户名>/pol2-dao-governance.git
+git remote add origin https://github.com/shentonyan/pol2-dao-governance.git
 git push -u origin main
 ```
 
@@ -33,7 +33,7 @@ File → Add local repository → 选择本目录 → Publish repository。
 
 ## 上传后建议做的事
 
-- 把 `README.md` 快速开始里的 `<你的用户名>` 换成真实用户名。
+- 把 `README.md` 快速开始里的 `shentonyan` 换成真实用户名。
 - 在 `CITATION.cff` 里填上你的名字（`authors`）。
 - 仓库设置 → About：填写简介，添加 topics，例如 `dao` `ai-governance` `quadratic-voting` `proof-of-love` `naturaldao`。
 - 想换许可证（例如和 NaturalDAO 一样用 CC0-1.0）：替换 `LICENSE` 文件，并修改 `pyproject.toml` 与 README 末尾的说明。

@@ -61,7 +61,7 @@ flowchart LR
 ## 快速开始
 
 ```bash
-git clone https://github.com/<你的用户名>/pol2-dao-governance.git
+git clone https://github.com/shentonyan/pol2-dao-governance.git
 cd pol2-dao-governance
 python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
